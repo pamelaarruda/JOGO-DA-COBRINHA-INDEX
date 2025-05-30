@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jogo da Cobrinha</title>
+  <style>
+    body {
+      background: #ffe7ec;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: #ff66aa;
+      text-shadow: 1px 1px #fff;
+      text-align: center;
+    }
+
+    #score {
+      font-size: 18px;
+      margin: 10px;
+      color: #6b5b95;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      border: 8px solid #ff66aa;
+      background-color: #fff0f6;
+      touch-action: none;
+      max-width: 100vw;
+      height: auto;
+    }
+
+    #controls {
+      margin-top: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #directionButtons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .dir-btn {
+      width: 60px;
+      height: 60px;
+      background-color: #ff66aa;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .dir-btn:hover {
+      background-color: #e05599;
+    }
+
+    button {
+      background-color: #ff66aa;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    button:hover {
+      background-color: #e05599;
+    }
+
+    @media (max-width: 500px) {
+      .dir-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+      }
+
+      button {
+        font-size: 14px;
+        padding: 8px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🐍 Jogo da Cobrinha 🔹</h1>
+  <div id="score">Pontuação: 0</div>
+  <canvas id="game" width="320" height="320"></canvas>
+  <div id="controls">
+    <button onclick="resetGame()">Reiniciar</button>
+    <div id="directionButtons">
+      <button class="dir-btn" onclick="setDirection('left')">⬅️</button>
+      <button class="dir-btn" onclick="setDirection('up')">⬆️</button>
+      <button class="dir-btn" onclick="setDirection('down')">⬇️</button>
+      <button class="dir-btn" onclick="setDirection('right')">➡️</button>
+    </div>
+  </div>
+
+  <audio id="eatSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_6781732e5c.mp3?filename=cartoon-jump-6462.mp3"></audio>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreDisplay = document.getElementById("score");
+    const eatSound = document.getElementById("eatSound");
+    const box = 20;
+    const canvasSize = 320;
+    let snake = [ { x: 160, y: 160 } ];
+    let direction = "right";
+    let food = randomFood();
+    let score = 0;
+    let running = true;
+    let gameInterval = null;
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    canvas.addEventListener("touchstart", (e) => {
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    });
+
+    canvas.addEventListener("touchend", (e) => {
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0) setDirection("right");
+        else setDirection("left");
+      } else {
+        if (dy > 0) setDirection("down");
+        else setDirection("up");
+      }
+    });
+
+    document.addEventListener("keydown", changeDirection);
+
+    function setDirection(dir) {
+      if (dir === "up" && direction !== "down") direction = "up";
+      else if (dir === "down" && direction !== "up") direction = "down";
+      else if (dir === "left" && direction !== "right") direction = "left";
+      else if (dir === "right" && direction !== "left") direction = "right";
+    }
+
+    function changeDirection(event) {
+      const key = event.key;
+      if (key === "ArrowUp") setDirection("up");
+      else if (key === "ArrowDown") setDirection("down");
+      else if (key === "ArrowLeft") setDirection("left");
+      else if (key === "ArrowRight") setDirection("right");
+    }
+
+    function randomFood() {
+      return {
+        x: Math.floor(Math.random() * (canvasSize / box)) * box,
+        y: Math.floor(Math.random() * (canvasSize / box)) * box
+      };
+    }
+
+    function draw() {
+      if (!running) return;
+
+      ctx.fillStyle = "#fff0f6";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#6b5b95";
+      snake.forEach((segment) => {
+        ctx.fillRect(segment.x, segment.y, box, box);
+      });
+
+      ctx.fillStyle = "#ff66aa";
+      ctx.fillRect(food.x, food.y, box, box);
+
+      let head = { x: snake[0].x, y: snake[0].y };
+      if (direction === "right") head.x += box;
+      if (direction === "left") head.x -= box;
+      if (direction === "up") head.y -= box;
+      if (direction === "down") head.y += box;
+
+      if (
+        head.x < 0 || head.x >= canvasSize ||
+        head.y < 0 || head.y >= canvasSize ||
+        snake.some(seg => seg.x === head.x && seg.y === head.y)
+      ) {
+        running = false;
+        alert("Game Over! Sua pontuação foi: " + score);
+        resetGame();
+        return;
+      }
+
+      snake.unshift(head);
+      if (head.x === food.x && head.y === food.y) {
+        score++;
+        scoreDisplay.textContent = "Pontuação: " + score;
+        food = randomFood();
+        eatSound.play();
+      } else {
+        snake.pop();
+      }
+    }
+
+    function resetGame() {
+      clearInterval(gameInterval);
+      snake = [ { x: 160, y: 160 } ];
+      direction = "right";
+      food = randomFood();
+      score = 0;
+      scoreDisplay.textContent = "Pontuação: 0";
+      running = true;
+      gameInterval = setInterval(draw, 150);
+    }
+
+    resetGame();
+  </script>
+</body>
+</html>
